@@ -340,9 +340,23 @@ else:
     with tab1:
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Data Overview")
-        st.markdown("A brief snapshot of the records in the dataset matching the active filters.")
-        st.dataframe(filtered_df.head(25), use_container_width=True)
+        st.markdown("Search and export the records matching the active filters.")
 
+        search_term = st.text_input("🔍 Search by job title", placeholder="e.g. Data Engineer, ML Scientist...")
+
+        table_df = filtered_df
+        if search_term:
+            table_df = table_df[table_df["job_title"].str.contains(search_term, case=False, na=False)]
+            st.caption(f"Found {len(table_df):,} matching record(s).")
+
+        st.dataframe(table_df.head(100), use_container_width=True)
+
+        st.download_button(
+            label="⬇️ Download filtered data as CSV",
+            data=table_df.to_csv(index=False).encode("utf-8"),
+            file_name="filtered_salaries.csv",
+            mime="text/csv",
+        )
     # TAB 2: Roles & Experience
     with tab2:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -512,5 +526,5 @@ else:
                 labels={"salary_in_usd": "Avg Salary (USD)", "company_size": "Company Size"}
             )
             fig5 = style_plotly_fig(fig5, "Average Salary by Company Size")
-            fig5.update_layout(showlegend=False)
+            fig5.update_layout(showlegend=False)ss
             st.plotly_chart(fig5, use_container_width=True)
