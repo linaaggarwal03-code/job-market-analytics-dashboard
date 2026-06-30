@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from utils.ml_model import train_salary_model, predict_salary
 
 st.set_page_config(
     page_title="Data Science Salary Dashboard",
@@ -136,6 +137,23 @@ div[data-testid="stAlert"] {
     border: 1px solid rgba(245, 158, 11, 0.25);
     border-radius: 12px;
     color: #92400e;
+}
+
+/* Predictor result card */
+.predict-result {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(219, 39, 119, 0.06) 100%);
+    border: 1px solid rgba(79, 70, 229, 0.18);
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+}
+
+.predict-result .big-number {
+    font-size: 2.6rem;
+    font-weight: 700;
+    background: linear-gradient(to right, #1E1B4B, #4F46E5, #9333EA);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 </style>
@@ -329,12 +347,14 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Tabs definition
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📋 Overview & Data",
-        "💼 Roles & Experience",
-        "🌍 Global Geography",
-        "🏢 Company & Environment"
-    ])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📋 Overview & Data",
+    "💼 Roles & Experience",
+    "📈 Trends Over Time",
+    "🌍 Global Geography",
+    "🏢 Company & Environment",
+    "🤖 Salary Predictor"
+])
 
     # TAB 1: Overview
     with tab1:
@@ -409,9 +429,49 @@ else:
             fig2 = style_plotly_fig(fig2, "Average Salary by Experience Level")
             fig2.update_layout(showlegend=False)
             st.plotly_chart(fig2, use_container_width=True)
-
-    # TAB 3: Global Geography
+    # TAB 3: Trends Over Time
     with tab3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("See how average compensation has shifted year over year, and how that growth differs by seniority.")
+
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            yearly = filtered_df.groupby("work_year")["salary_in_usd"].mean().reset_index()
+            fig_year = px.line(
+                yearly,
+                x="work_year",
+                y="salary_in_usd",
+                markers=True,
+                labels={"salary_in_usd": "Avg Salary (USD)", "work_year": "Year"},
+                color_discrete_sequence=["#4F46E5"]
+            )
+            fig_year = style_plotly_fig(fig_year, "Average Salary by Year")
+            fig_year.update_xaxes(dtick=1)
+            st.plotly_chart(fig_year, use_container_width=True)
+
+        with col_right:
+            exp_order = ["Entry Level", "Mid Level", "Senior Level", "Executive Level"]
+            yearly_by_exp = (
+                filtered_df.groupby(["work_year", "experience_level"])["salary_in_usd"]
+                .mean()
+                .reset_index()
+            )
+            fig_year_exp = px.line(
+                yearly_by_exp,
+                x="work_year",
+                y="salary_in_usd",
+                color="experience_level",
+                markers=True,
+                category_orders={"experience_level": exp_order},
+                color_discrete_sequence=["#818CF8", "#6366F1", "#4F46E5", "#312E81"],
+                labels={"salary_in_usd": "Avg Salary (USD)", "work_year": "Year", "experience_level": "Experience"}
+            )
+            fig_year_exp = style_plotly_fig(fig_year_exp, "Salary Growth by Experience Level")
+            fig_year_exp.update_xaxes(dtick=1)
+            st.plotly_chart(fig_year_exp, use_container_width=True)
+    # TAB 4: Global Geography
+    with tab4:
         st.markdown("<br>", unsafe_allow_html=True)
         col_map_left, col_map_right = st.columns(2)
 
@@ -467,8 +527,8 @@ else:
             )
             st.plotly_chart(fig_map, use_container_width=True)
 
-    # TAB 4: Company & Environment
-    with tab4:
+    # TAB 5: Company & Environment
+    with tab5:
         st.markdown("<br>", unsafe_allow_html=True)
         col_comp_left, col_comp_right = st.columns(2)
 
@@ -526,5 +586,62 @@ else:
                 labels={"salary_in_usd": "Avg Salary (USD)", "company_size": "Company Size"}
             )
             fig5 = style_plotly_fig(fig5, "Average Salary by Company Size")
-            fig5.update_layout(showlegend=False)ss
+            fig5.update_layout(showlegend=False)
             st.plotly_chart(fig5, use_container_width=True)
+    # TAB 6: Salary Predictor (ML)
+    with tab6:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("🤖 ML-Powered Salary Predictor")
+        st.markdown(
+            "Pick a role profile below and a **Random Forest** model -- trained on the full, "
+            "unfiltered dataset -- will estimate the expected salary in USD."
+        )
+
+        with st.spinner("Training model..."):
+            model_result = train_salary_model(df)
+
+        with st.expander("ℹ️ About this model"):
+            st.markdown(f"""
+- **Algorithm:** Random Forest Regressor (scikit-learn), 200 trees
+- **Features:** work year, experience level, employment type, job title, remote ratio, company location, company size
+- **Train/test split:** 80/20, evaluated on held-out test data
+- **Test R² score:** `{model_result.r2:.3f}`
+- **Test Mean Absolute Error:** `${model_result.mae:,.0f}`
+            """)
+
+        pred_col1, pred_col2, pred_col3 = st.columns(3)
+        with pred_col1:
+            in_job_title = st.selectbox("Job Title", model_result.job_titles)
+            in_experience = st.selectbox("Experience Level", ["Entry Level", "Mid Level", "Senior Level", "Executive Level"])
+        with pred_col2:
+            in_company_size = st.selectbox("Company Size", ["Small", "Medium", "Large"])
+            in_remote = st.selectbox("Remote Ratio", ["On-site", "Hybrid", "Remote"])
+        with pred_col3:
+            in_country = st.selectbox("Company Location", model_result.countries)
+            in_employment = st.selectbox("Employment Type", sorted(df["employment_type"].dropna().unique().tolist()))
+
+        in_year = st.slider("Work Year", min_value=int(df["work_year"].min()), max_value=int(df["work_year"].max()) + 1, value=int(df["work_year"].max()))
+
+        if st.button("🔮 Predict Salary", type="primary", use_container_width=True):
+            prediction, uncertainty = predict_salary(
+                model_result,
+                work_year=in_year,
+                experience_level=in_experience,
+                employment_type=in_employment,
+                job_title=in_job_title,
+                remote_ratio=in_remote,
+                company_location=in_country,
+                company_size=in_company_size,
+            )
+
+            st.markdown(f"""
+<div class="predict-result">
+    <div style="font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
+        Estimated Salary (USD / year)
+    </div>
+    <div class="big-number">${prediction:,.0f}</div>
+    <div style="color: #475569; margin-top: 8px;">
+        Typical range: ${max(prediction - uncertainty, 0):,.0f} – ${prediction + uncertainty:,.0f}
+    </div>
+</div>
+""", unsafe_allow_html=True)        

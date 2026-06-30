@@ -1,5 +1,9 @@
 [theme]
-primaryColor = "#4F46E5"          # Indigo 600
-backgroundColor = "#F8FAFC"       # Slate 50
-secondaryBackgroundColor = "#FFFFFF" # Pure White for sidebar/widgets
-textColor = "#1E293B"             # Slate 800
+primaryColor = "#4F46E5"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1E293B"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
