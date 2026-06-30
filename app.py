@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from utils.ml_model import train_salary_model, predict_salary
+from utils.styling import inject_custom_css, make_kpi_card, style_plotly_fig, DOLLAR_SVG, TREND_SVG, BRIEFCASE_SVG, GLOBE_SVG
+from utils.data_loader import load_data, filter_data, EXPERIENCE_ORDER, COMPANY_SIZE_ORDER
 
 st.set_page_config(
     page_title="Data Science Salary Dashboard",
@@ -11,273 +13,10 @@ st.set_page_config(
 )
 
 # Custom Styling (Light Glassmorphism & Outfit Font)
-st.markdown("""
-<style>
-/* Custom font */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-
-/* Global styles */
-html, body, [data-testid="stAppViewContainer"], .main {
-    font-family: 'Outfit', sans-serif;
-    background-color: #f8fafc;
-    color: #1e293b;
-}
-
-/* Sidebar styling */
-[data-testid="stSidebar"] {
-    background-color: #ffffff;
-    border-right: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2 {
-    color: #0f172a;
-    font-weight: 600;
-}
-
-/* Hide default headers/footers */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {background-color: transparent !important;}
-
-/* Custom KPI Cards */
-.kpi-card {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(0, 0, 0, 0.04);
-    border-radius: 16px;
-    padding: 22px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02);
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.kpi-card:hover {
-    transform: translateY(-4px);
-    border-color: rgba(99, 102, 241, 0.35);
-    box-shadow: 0 12px 24px -8px rgba(99, 102, 241, 0.15);
-    background: rgba(255, 255, 255, 0.95);
-}
-
-.kpi-icon-container {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.kpi-content {
-    display: flex;
-    flex-direction: column;
-}
-
-.kpi-label {
-    font-size: 12px;
-    color: #64748b;
-    margin: 0;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.kpi-value {
-    font-size: 24px;
-    color: #0f172a;
-    margin: 4px 0 0 0;
-    font-weight: 700;
-}
-
-/* Tabs customization */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    background-color: transparent;
-    padding: 0 10px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.stTabs [data-baseweb="tab"] {
-    background-color: rgba(241, 245, 249, 0.6);
-    border: 1px solid rgba(0, 0, 0, 0.03);
-    border-radius: 8px 8px 0 0;
-    color: #64748b;
-    padding: 12px 24px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-.stTabs [data-baseweb="tab"]:hover {
-    color: #0f172a;
-    background-color: rgba(241, 245, 249, 0.95);
-    border-color: rgba(0, 0, 0, 0.08);
-}
-
-.stTabs [aria-selected="true"] {
-    background-color: rgba(99, 102, 241, 0.07) !important;
-    border-color: rgba(99, 102, 241, 0.2) !important;
-    color: #4f46e5 !important;
-    border-bottom: 2px solid #4f46e5 !important;
-    font-weight: 600;
-}
-
-/* Styling DataFrame wrapper */
-.element-container:has(div.stDataFrame) {
-    background: rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    border-radius: 12px;
-    padding: 8px;
-}
-
-/* Alert/warning styling overrides */
-div[data-testid="stAlert"] {
-    background-color: rgba(254, 243, 199, 0.6);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: 12px;
-    color: #92400e;
-}
-
-/* Predictor result card */
-.predict-result {
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(219, 39, 119, 0.06) 100%);
-    border: 1px solid rgba(79, 70, 229, 0.18);
-    border-radius: 16px;
-    padding: 28px;
-    text-align: center;
-}
-
-.predict-result .big-number {
-    font-size: 2.6rem;
-    font-weight: 700;
-    background: linear-gradient(to right, #1E1B4B, #4F46E5, #9333EA);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# SVG Icons for KPI Cards
-dollar_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>"""
-trend_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>"""
-briefcase_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>"""
-globe_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>"""
-
-def make_kpi_card(title, value, svg_icon, color_theme):
-    themes = {
-        "violet": {"bg": "rgba(79, 70, 229, 0.09)", "text": "#4F46E5"},
-        "cyan": {"bg": "rgba(8, 145, 178, 0.09)", "text": "#0891B2"},
-        "emerald": {"bg": "rgba(5, 150, 105, 0.09)", "text": "#059669"},
-        "amber": {"bg": "rgba(217, 119, 6, 0.09)", "text": "#D97706"}
-    }
-    t = themes.get(color_theme, themes["violet"])
-    return f"""
-    <div class="kpi-card" style="border-left: 4px solid {t['text']};">
-        <div class="kpi-icon-container" style="background: {t['bg']}; color: {t['text']};">
-            {svg_icon}
-        </div>
-        <div class="kpi-content">
-            <span class="kpi-label">{title}</span>
-            <span class="kpi-value">{value}</span>
-        </div>
-    </div>
-    """
-
-def style_plotly_fig(fig, title_text):
-    fig.update_layout(
-        title={
-            'text': f"<b>{title_text}</b>",
-            'y': 0.94,
-            'x': 0.05,
-            'xanchor': 'left',
-            'yanchor': 'top',
-            'font': {'size': 18, 'family': 'Outfit, sans-serif', 'color': '#1E293B'}
-        },
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font_family="Outfit, sans-serif",
-        font_color="#475569",
-        margin=dict(l=50, r=30, t=80, b=50),
-        hoverlabel=dict(
-            bgcolor="#FFFFFF",
-            font_size=13,
-            font_family="Outfit, sans-serif",
-            font_color="#1E293B"
-        )
-    )
-    fig.update_xaxes(
-        showgrid=False,
-        linecolor='rgba(0, 0, 0, 0.08)',
-        tickfont=dict(color='#475569', size=11),
-        title_font=dict(color='#1E293B', size=12)
-    )
-    fig.update_yaxes(
-        showgrid=True,
-        gridcolor='rgba(0, 0, 0, 0.05)',
-        linecolor='rgba(0, 0, 0, 0.08)',
-        tickfont=dict(color='#475569', size=11),
-        title_font=dict(color='#1E293B', size=12)
-    )
-    return fig
+inject_custom_css()
 
 # Load Data
-df = pd.read_csv("data/ds_salaries.csv")
-if "Unnamed: 0" in df.columns:
-    df = df.drop(columns=["Unnamed: 0"])
-
-# Mappings
-experience_map = {
-    "EN": "Entry Level",
-    "MI": "Mid Level",
-    "SE": "Senior Level",
-    "EX": "Executive Level"
-}
-
-remote_map = {
-    0: "On-site",
-    50: "Hybrid",
-    100: "Remote"
-}
-
-company_size_map = {
-    "S": "Small",
-    "M": "Medium",
-    "L": "Large"
-}
-
-country_map = {
-    "AE": "United Arab Emirates", "AS": "American Samoa", "AT": "Austria", "AU": "Australia",
-    "BE": "Belgium", "BR": "Brazil", "CA": "Canada", "CH": "Switzerland", "CL": "Chile",
-    "CN": "China", "CO": "Colombia", "CZ": "Czechia", "DE": "Germany", "DK": "Denmark",
-    "DZ": "Algeria", "EE": "Estonia", "ES": "Spain", "FR": "France", "GB": "United Kingdom",
-    "GR": "Greece", "HN": "Honduras", "HR": "Croatia", "HU": "Hungary", "IE": "Ireland",
-    "IL": "Israel", "IN": "India", "IQ": "Iraq", "IR": "Iran", "IT": "Italy", "JP": "Japan",
-    "KE": "Kenya", "LU": "Luxembourg", "MD": "Moldova", "MT": "Malta", "MX": "Mexico",
-    "MY": "Malaysia", "NG": "Nigeria", "NL": "Netherlands", "NZ": "New Zealand",
-    "PK": "Pakistan", "PL": "Poland", "PT": "Portugal", "RO": "Romania", "RU": "Russia",
-    "SG": "Singapore", "SI": "Slovenia", "TR": "Turkey", "UA": "Ukraine", "US": "United States",
-    "VN": "Vietnam"
-}
-
-iso2_to_iso3 = {
-    "AE": "ARE", "AS": "ASM", "AT": "AUT", "AU": "AUS", "BE": "BEL", "BR": "BRA",
-    "CA": "CAN", "CH": "CHE", "CL": "CHL", "CN": "CHN", "CO": "COL", "CZ": "CZE",
-    "DE": "DEU", "DK": "DNK", "DZ": "DZA", "EE": "EST", "ES": "ESP", "FR": "FRA",
-    "GB": "GBR", "GR": "GRC", "HN": "HND", "HR": "HRV", "HU": "HUN", "IE": "IRL",
-    "IL": "ISR", "IN": "IND", "IQ": "IRQ", "IR": "IRN", "IT": "ITA", "JP": "JPN",
-    "KE": "KEN", "LU": "LUX", "MD": "MDA", "MT": "MLT", "MX": "MEX", "MY": "MYS",
-    "NG": "NGA", "NL": "NLD", "NZ": "NZL", "PK": "PAK", "PL": "POL", "PT": "PRT",
-    "RO": "ROU", "RU": "RUS", "SG": "SGP", "SI": "SVN", "TR": "TUR", "UA": "UKR",
-    "US": "USA", "VN": "VNM"
-}
-
-df["company_location_iso3"] = df["company_location"].map(iso2_to_iso3).fillna(df["company_location"])
-df["company_location"] = df["company_location"].replace(country_map)
-df["company_size"] = df["company_size"].map(company_size_map)
-df["experience_level"] = df["experience_level"].map(experience_map)
-df["remote_ratio"] = df["remote_ratio"].map(remote_map)
+df = load_data("data/ds_salaries.csv")
 
 # Sidebar Filters
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
@@ -300,15 +39,8 @@ selected_company_size = st.sidebar.selectbox(
 )
 
 # Apply Filters
-filtered_df = df.copy()
-if selected_experience != "All":
-    filtered_df = filtered_df[filtered_df["experience_level"] == selected_experience]
-
-if selected_country != "All":
-    filtered_df = filtered_df[filtered_df["company_location"] == selected_country]
-
-if selected_company_size != "All":
-    filtered_df = filtered_df[filtered_df["company_size"] == selected_company_size]
+# Apply Filters
+filtered_df = filter_data(df, selected_experience, selected_country, selected_company_size)
 
 # Main Title & Hero Banner
 st.markdown("""
@@ -336,13 +68,13 @@ else:
     # KPI Layout
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.markdown(make_kpi_card("Average Salary", f"${avg_salary:,.0f}", dollar_svg, "violet"), unsafe_allow_html=True)
+        st.markdown(make_kpi_card("Average Salary", f"${avg_salary:,.0f}",  DOLLAR_SVG, "violet"), unsafe_allow_html=True)
     with col2:
-        st.markdown(make_kpi_card("Highest Salary", f"${max_salary:,.0f}", trend_svg, "cyan"), unsafe_allow_html=True)
+        st.markdown(make_kpi_card("Highest Salary", f"${max_salary:,.0f}", TREND_SVG, "cyan"), unsafe_allow_html=True)
     with col3:
-        st.markdown(make_kpi_card("Total Records", f"{total_jobs:,}", briefcase_svg, "emerald"), unsafe_allow_html=True)
+        st.markdown(make_kpi_card("Total Records", f"{total_jobs:,}", BRIEFCASE_SVG, "emerald"), unsafe_allow_html=True)
     with col4:
-        st.markdown(make_kpi_card("Total Countries", f"{total_countries}", globe_svg, "amber"), unsafe_allow_html=True)
+        st.markdown(make_kpi_card("Total Countries", f"{total_countries}", GLOBE_SVG, "amber"), unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
