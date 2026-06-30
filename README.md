@@ -2,7 +2,7 @@
 
 An interactive Streamlit web app for exploring global data-science compensation trends — built on the `ds_salaries` dataset. Combines data visualization, exploratory analytics, and a trained machine learning model in one dashboard.
 
-🔗 **Live demo:** _add your link here after deploying_
+🔗 **Live demo:** https://job-market-analytics-dashboard-fhuupu935p6kdoruzhzyp9.streamlit.app/
 
 ## ✨ Features
 
